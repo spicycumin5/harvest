@@ -17,7 +17,10 @@ export interface CompletionLike {
 }
 
 export type PlotStatus = "fallow" | "growing" | "ripe" | "dead";
-export type FarmerAction = "plant" | "weed" | "water" | "harvest" | "replant" | "none";
+export type FarmerAction = "plow" | "plant" | "weed" | "water" | "harvest" | "replant" | "none";
+
+/** The jobs a daily check-in can do. */
+export type TendAction = "plow" | "plant" | "weed" | "water";
 
 export interface PlotState {
   status: PlotStatus;
@@ -36,6 +39,9 @@ export interface PlotState {
 
 /**
  * Derives a plot's state purely from its completion history.
+ *
+ * Each tended day moves the plot one step: the first plows the soil, the second plants
+ * the seeds, and every day after that waters the crop until it ripens.
  *
  * Past days (before today) are settled: done → +1 growth, +1 heart, weeds cleared;
  * rest → nothing changes; missed → −1 heart, +1 weed. The cycle's first day is
@@ -96,7 +102,8 @@ export function computePlot(habit: HabitLike, completions: CompletionLike[], tod
   let nextAction: FarmerAction;
   if (ripe) nextAction = "harvest";
   else if (doneToday || restToday) nextAction = "none";
-  else if (growth === 0) nextAction = "plant";
+  else if (growth === 0) nextAction = "plow";
+  else if (growth === 1) nextAction = "plant";
   else if (weeds > 0) nextAction = "weed";
   else nextAction = "water";
 

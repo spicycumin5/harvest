@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { addDays, devTodayOverride, todayIn, type Day } from "../lib/dates";
@@ -198,4 +198,10 @@ export function useReplant() {
     (v) => ({ p_habit_id: v.habitId, p_died_on: v.diedOn, p_today: v.today }),
     (v) => v.today,
   );
+}
+
+/** Every day any habit was tended. Unlocks new crops. */
+export function useTendedDays(): number {
+  const { data } = useCompletions();
+  return useMemo(() => (data ?? []).filter((c) => c.kind === "done").length, [data]);
 }

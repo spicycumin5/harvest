@@ -2,11 +2,15 @@ import type { Day } from "../lib/dates";
 import type { CropType } from "../game/crops";
 import type { CompletionKind } from "../game/engine";
 
+export type ThemeId = "floating" | "farm" | "backyard" | "ocean";
+
 export interface Profile {
   id: string;
   display_name: string | null;
   farm_name: string | null;
   timezone: string;
+  /** Older databases without the column read as undefined; treat that as "floating". */
+  theme?: ThemeId;
 }
 
 export interface Habit {

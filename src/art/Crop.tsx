@@ -285,6 +285,116 @@ function Wheat({ stage }: { stage: Stage }) {
   );
 }
 
+function Tomato({ stage }: { stage: Stage }) {
+  const ripe = stage === "ripe";
+  return (
+    <g>
+      {/* a little cane support */}
+      <line x1={58} y1={81} x2={58} y2={34} stroke="#d8c08a" strokeWidth={1.8} strokeLinecap="round" />
+      <Stem to={36} bend={-4} />
+      <Leaf x={50} y={72} angle={-165} len={15} />
+      <Leaf x={50} y={64} angle={-18} len={15} />
+      <Leaf x={50} y={54} angle={-158} len={14} />
+      <Leaf x={50} y={46} angle={-24} len={13} />
+      <Leaf x={50} y={38} angle={-120} len={10} />
+      {ripe ? (
+        <>
+          <Gem x={43} y={58} r={5} c={["#f58e7e", "#dd6a64"]} />
+          <Gem x={56} y={68} r={5.5} c={["#f58e7e", "#dd6a64"]} />
+          <Gem x={45} y={46} r={4.5} c={["#f7a37e", "#e5826a"]} />
+        </>
+      ) : (
+        <>
+          {[
+            [43, 58],
+            [56, 66],
+          ].map(([x, y], i) => (
+            <g key={i} transform={`translate(${x} ${y})`}>
+              {[0, 72, 144, 216, 288].map((a) => (
+                <polygon key={a} points="-1.2,0 0,-4 1.2,0" fill={PAL.petal[0]} transform={`rotate(${a})`} />
+              ))}
+            </g>
+          ))}
+        </>
+      )}
+    </g>
+  );
+}
+
+function RoseHead({ x, y, r, c }: { x: number; y: number; r: number; c: Duo }) {
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <Gem x={0} y={0} r={r} c={c} />
+      <polygon points={`${-r * 0.5},${-r * 0.2} 0,${-r * 0.75} ${r * 0.5},${-r * 0.2} 0,${r * 0.3}`} fill={c[1]} opacity={0.7} />
+    </g>
+  );
+}
+
+function Rose({ stage }: { stage: Stage }) {
+  const ripe = stage === "ripe";
+  const c: Duo = ["#f6a3b8", "#de7d98"];
+  return (
+    <g>
+      <Gem x={50} y={72} r={14} ry={9} c={LEAF} />
+      {[
+        [40, 52, -12],
+        [52, 42, 2],
+        [62, 56, 14],
+      ].map(([x, y, a], i) => (
+        <g key={i}>
+          <line x1={50} y1={74} x2={x} y2={y} stroke={STEM} strokeWidth={1.8} strokeLinecap="round" />
+          <Leaf x={(50 + x) / 2} y={(74 + y) / 2} angle={a < 0 ? -160 : -20} len={9} />
+          {ripe ? (
+            <RoseHead x={x} y={y} r={5.5} c={c} />
+          ) : (
+            <g transform={`translate(${x} ${y})`}>
+              <polygon points="-2.6,1 0,-6 2.6,1" fill={c[0]} />
+              <polygon points="-3,2 0,-2 3,2 0,4" fill={LEAF[1]} />
+            </g>
+          )}
+        </g>
+      ))}
+    </g>
+  );
+}
+
+function Cherry({ stage }: { stage: Stage }) {
+  const ripe = stage === "ripe";
+  const canopy: Duo = ripe ? ["#a8dcbf", "#74b39a"] : ["#fbd3df", "#f0b0c4"];
+  return (
+    <g>
+      {/* trunk */}
+      <polygon points="47,81 50,81 50,48 48,48" fill="#c9a28f" />
+      <polygon points="50,81 53,81 52,48 50,48" fill="#a17868" />
+      <line x1={50} y1={56} x2={40} y2={46} stroke="#a17868" strokeWidth={2} strokeLinecap="round" />
+      <line x1={50} y1={52} x2={60} y2={42} stroke="#a17868" strokeWidth={2} strokeLinecap="round" />
+      {/* faceted canopy */}
+      <Gem x={38} y={40} r={12} ry={10} c={canopy} />
+      <Gem x={62} y={38} r={12} ry={10} c={canopy} />
+      <Gem x={50} y={28} r={14} ry={12} c={canopy} />
+      {ripe
+        ? [
+            [36, 46],
+            [44, 38],
+            [58, 44],
+            [64, 34],
+            [52, 30],
+          ].map(([x, y], i) => (
+            <g key={i}>
+              <line x1={x} y1={y - 4} x2={x + 1} y2={y} stroke="#8b6b8f" strokeWidth={0.8} />
+              <circle cx={x} cy={y + 1.5} r={2.4} fill="#e1576d" />
+            </g>
+          ))
+        : [
+            [34, 38],
+            [46, 30],
+            [60, 40],
+            [55, 24],
+          ].map(([x, y], i) => <circle key={i} cx={x} cy={y} r={1.6} fill="#fffaf5" />)}
+    </g>
+  );
+}
+
 const MATURE: Record<CropType, (p: { stage: Stage }) => ReactNode> = {
   carrot: Carrot,
   sunflower: Sunflower,
@@ -292,6 +402,9 @@ const MATURE: Record<CropType, (p: { stage: Stage }) => ReactNode> = {
   pumpkin: Pumpkin,
   lavender: Lavender,
   wheat: Wheat,
+  tomato: Tomato,
+  rose: Rose,
+  cherry: Cherry,
 };
 
 function Withered() {
@@ -317,7 +430,7 @@ export interface CropProps {
 export function CropArt({ type, stage, droop = 0, dead }: CropProps) {
   if (dead) return <Withered />;
   let art: ReactNode = null;
-  if (stage === "seed") art = <Seed />;
+  if (stage === "seeded") art = <Seed />;
   else if (stage === "sprout") art = <Sprout />;
   else if (stage === "young") art = <Young top={type === "sunflower" ? 38 : 46} />;
   else if (stage === "bloom" || stage === "ripe") {
