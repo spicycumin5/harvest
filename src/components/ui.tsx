@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CROP_TYPES, CROPS, type CropType } from "../game/crops";
+import { CROP_TYPES, CROPS, isUnlocked, type CropType } from "../game/crops";
 import { CropIcon } from "../art/Crop";
 
 export function Modal({ open, onClose, label, children }: { open: boolean; onClose: () => void; label: string; children: ReactNode }) {
@@ -37,23 +37,73 @@ export function Modal({ open, onClose, label, children }: { open: boolean; onClo
   );
 }
 
-export function CropPicker({ value, onChange, size = 56 }: { value: CropType; onChange: (c: CropType) => void; size?: number }) {
+/**
+ * Choose a crop. Crops that aren't unlocked yet are shown greyed out with how many
+ * more tended days they need.
+ */
+export function CropPicker({
+  value,
+  onChange,
+  size = 56,
+  tendedDays = Infinity,
+}: {
+  value: CropType;
+  onChange: (c: CropType) => void;
+  size?: number;
+  tendedDays?: number;
+}) {
   return (
     <div className="crop-picker" role="radiogroup" aria-label="Crop">
-      {CROP_TYPES.map((c) => (
-        <button
-          key={c}
-          type="button"
-          role="radio"
-          aria-checked={value === c}
-          className={`crop-option${value === c ? " selected" : ""}`}
-          onClick={() => onChange(c)}
-        >
-          <CropIcon type={c} size={size} />
-          <span>{CROPS[c].label}</span>
-        </button>
-      ))}
+      {CROP_TYPES.map((c) => {
+        const locked = !isUnlocked(c, tendedDays);
+        const remaining = CROPS[c].unlockAt - tendedDays;
+        return (
+          <button
+            key={c}
+            type="button"
+            role="radio"
+            aria-checked={value === c}
+            aria-disabled={locked}
+            disabled={locked}
+            title={locked ? `Unlocks after ${CROPS[c].unlockAt} tended days` : `${CROPS[c].growDays + 2} days to harvest`}
+            className={`crop-option${value === c ? " selected" : ""}${locked ? " locked" : ""}`}
+            onClick={() => !locked && onChange(c)}
+          >
+            <CropIcon type={c} size={size} />
+            <span>{CROPS[c].label}</span>
+            <span className="crop-meta">{locked ? `🔒 ${remaining} more days` : `${CROPS[c].growDays + 2} days`}</span>
+          </button>
+        );
+      })}
     </div>
+  );
+}
+
+/** A panel that slides over the farm: from the right on wide screens, from the bottom on phones. */
+export function SidePanel({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <motion.aside
+      className="side-panel"
+      role="dialog"
+      aria-label={title}
+      initial={{ opacity: 0, x: 30, y: 0 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      exit={{ opacity: 0, x: 30 }}
+      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+    >
+      <header className="side-panel-head">
+        <h2>{title}</h2>
+        <button className="modal-close static" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+      </header>
+      <div className="side-panel-body">{children}</div>
+    </motion.aside>
   );
 }
 

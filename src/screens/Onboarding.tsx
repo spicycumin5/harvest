@@ -4,6 +4,8 @@ import { useCreateHabits, useToday, useUpdateProfile } from "../data/hooks";
 import { browserTimeZone } from "../lib/dates";
 import { CROP_TYPES, type CropType } from "../game/crops";
 import { HeroIsland } from "../art/Hero";
+import { ThemePicker } from "./Settings";
+import type { ThemeId } from "../data/types";
 import { CropPicker, ErrorNote } from "../components/ui";
 
 const SUGGESTIONS = ["Drink water", "Read 10 pages", "Stretch", "Walk outside", "Journal", "Meditate"];
@@ -17,6 +19,7 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const [farmName, setFarmName] = useState("");
   const [yourName, setYourName] = useState("");
+  const [theme, setTheme] = useState<ThemeId>("floating");
   const [drafts, setDrafts] = useState<Draft[]>([{ name: "", crop: "carrot" }]);
   const today = useToday();
   const createHabits = useCreateHabits();
@@ -47,6 +50,7 @@ export function Onboarding() {
         farm_name: farmName.trim(),
         display_name: yourName.trim() || null,
         timezone: browserTimeZone(),
+        theme,
       });
     } catch {
       // shown through the mutations' error state
@@ -55,7 +59,7 @@ export function Onboarding() {
 
   return (
     <div className="welcome">
-      <HeroIsland pose={step === 2 ? "wave" : step === 1 ? "plant" : "idle"} plotCount={step === 0 ? 0 : step === 1 ? 3 : 7} />
+      <HeroIsland theme={theme} pose={step === 2 ? "wave" : step === 1 ? "plant" : "idle"} plotCount={step === 0 ? 0 : step === 1 ? 3 : 7} />
       <div className="page narrow">
         <div className="steps" aria-label={`Step ${step + 1} of 3`}>
           {[0, 1, 2].map((i) => (
@@ -79,10 +83,11 @@ export function Onboarding() {
                   setStep(1);
                 }}
               >
-                <h2>Name your island</h2>
-                <p className="muted">A small piece of land, floating above the clouds. What will you call it?</p>
+                <h2>Choose your land</h2>
+                <p className="muted">Where will your farm grow? You can change this any time in Settings.</p>
+                <ThemePicker value={theme} onChange={setTheme} />
                 <div className="field">
-                  <label htmlFor="farm">Island name</label>
+                  <label htmlFor="farm">Name your farm</label>
                   <input id="farm" className="input" required maxLength={40} placeholder="Willowmere" value={farmName} onChange={(e) => setFarmName(e.target.value)} />
                 </div>
                 <div className="field">
@@ -124,7 +129,7 @@ export function Onboarding() {
                         </button>
                       )}
                     </div>
-                    <CropPicker value={d.crop} onChange={(crop) => setDraft(i, { crop })} size={44} />
+                    <CropPicker value={d.crop} onChange={(crop) => setDraft(i, { crop })} size={44} tendedDays={0} />
                   </div>
                 ))}
                 {drafts.length < 3 && (
@@ -150,10 +155,11 @@ export function Onboarding() {
                   {yourName.trim() ? `Hello, ${yourName.trim()}! ` : ""}A quiet wanderer tends <strong>{farmName}</strong>, but can only work when you show up.
                 </p>
                 <ul className="rules">
-                  <li>🌱 Each day you complete a habit, the wanderer tends its plot: planting, watering, pulling weeds.</li>
+                  <li>🌱 Each day you complete a habit, the wanderer does one day's work on its plot. Day one plows the field, day two plants the seeds, and every day after that waters the crop.</li>
                   <li>❤️ Each plot has three hearts. A missed day costs a heart and lets a weed in. Showing up restores one.</li>
                   <li>🥀 If a plot runs out of hearts, the crop wilts away. You can always replant.</li>
-                  <li>🧺 After 21 days of care, a crop is ripe for harvest and goes into your pantry.</li>
+                  <li>🧺 Crops take three to six weeks of steady care to ripen. Then you harvest them into your pantry.</li>
+                  <li>🔓 You start with carrots, sunflowers and wheat. More seeds arrive the more days you tend your farm.</li>
                   <li>🛌 Need a break? Take one rest day a week per habit, and the plot is tucked in safely.</li>
                 </ul>
                 <ErrorNote error={createHabits.error ?? updateProfile.error} />

@@ -1,44 +1,47 @@
 import { useState, type FormEvent } from "react";
-import { useCreateHabits, useHabits, useMoveHabit, useToday, useUpdateHabit } from "../data/hooks";
+import { useCreateHabits, useHabits, useMoveHabit, useTendedDays, useToday, useUpdateHabit } from "../data/hooks";
 import { MAX_PLOTS, type Habit } from "../data/types";
-import { CROP_TYPES, CROPS, type CropType } from "../game/crops";
+import { CROP_TYPES, CROPS, isUnlocked, nextUnlock, unlockedCrops, type CropType } from "../game/crops";
 import { CropIcon } from "../art/Crop";
 import { CropPicker, ErrorNote, Loading } from "../components/ui";
 
-export function Habits() {
+/** Plant, rename, move and archive habits. Shown in a panel over the farm. */
+export function HabitsPanel() {
   const habits = useHabits();
   const create = useCreateHabits();
   const today = useToday();
+  const tended = useTendedDays();
   const [name, setName] = useState("");
   const [crop, setCrop] = useState<CropType>("sunflower");
 
-  if (habits.isLoading) return <Loading />;
+  if (habits.isLoading) return <Loading label="Fetching the seed packets…" />;
   const list = habits.data ?? [];
   const used = new Set(list.map((h) => h.plot_index));
   const freePlot = Array.from({ length: MAX_PLOTS }, (_, i) => i).find((i) => !used.has(i));
+  const upcoming = nextUnlock(tended);
+  const chosen = isUnlocked(crop, tended) ? crop : unlockedCrops(tended)[0];
 
   function add(e: FormEvent) {
     e.preventDefault();
     if (freePlot === undefined || !name.trim()) return;
-    create.mutate(
-      [{ name: name.trim(), crop_type: crop, plot_index: freePlot, cycle_started_on: today }],
-      { onSuccess: () => setName("") },
-    );
+    create.mutate([{ name: name.trim(), crop_type: chosen, plot_index: freePlot, cycle_started_on: today }], { onSuccess: () => setName("") });
   }
 
   return (
-    <div className="page narrow-wide">
-      <h1>Your habits</h1>
-      <p className="muted">Each habit grows in its own plot. You have room for {MAX_PLOTS}, but a small, well-tended field beats a big wild one.</p>
-
+    <div className="stack panel-stack">
       {freePlot !== undefined ? (
-        <form className="card stack" onSubmit={add}>
+        <form className="panel-section stack" onSubmit={add}>
           <h3>Plant a new habit</h3>
           <div className="field">
             <label htmlFor="new-habit">What will you do each day?</label>
             <input id="new-habit" className="input" maxLength={60} placeholder="Read 10 pages" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <CropPicker value={crop} onChange={setCrop} size={48} />
+          <CropPicker value={chosen} onChange={setCrop} size={44} tendedDays={tended} />
+          {upcoming && (
+            <p className="small muted" style={{ margin: 0 }}>
+              {upcoming.remaining} more tended {upcoming.remaining === 1 ? "day" : "days"} until {CROPS[upcoming.crop].label.toLowerCase()} seeds arrive.
+            </p>
+          )}
           <ErrorNote error={create.error} />
           <div>
             <button className="btn sage" disabled={!name.trim() || create.isPending}>
@@ -47,22 +50,20 @@ export function Habits() {
           </div>
         </form>
       ) : (
-        <div className="card">
-          <p>All {MAX_PLOTS} plots are planted. Archive a habit to make room for a new one.</p>
-        </div>
+        <p className="panel-section">All {MAX_PLOTS} plots are planted. Archive a habit to make room for a new one.</p>
       )}
 
       <div className="habit-list">
         {list.length === 0 && <p className="muted center">No habits yet. Plant your first one above.</p>}
         {list.map((h) => (
-          <HabitRow key={h.id} habit={h} all={list} />
+          <HabitRow key={h.id} habit={h} all={list} tended={tended} />
         ))}
       </div>
     </div>
   );
 }
 
-function HabitRow({ habit, all }: { habit: Habit; all: Habit[] }) {
+function HabitRow({ habit, all, tended }: { habit: Habit; all: Habit[]; tended: number }) {
   const update = useUpdateHabit();
   const move = useMoveHabit();
   const [name, setName] = useState(habit.name);
@@ -75,9 +76,9 @@ function HabitRow({ habit, all }: { habit: Habit; all: Habit[] }) {
   }
 
   return (
-    <div className="card habit-row">
-      <CropIcon type={habit.crop_type} size={64} />
-      <div className="stack" style={{ flex: 1, gap: 10 }}>
+    <div className="panel-section habit-row">
+      <CropIcon type={habit.crop_type} size={56} />
+      <div className="stack" style={{ flex: 1, gap: 10, minWidth: 0 }}>
         <input
           className="input habit-name"
           aria-label="Habit name"
@@ -90,14 +91,11 @@ function HabitRow({ habit, all }: { habit: Habit; all: Habit[] }) {
         <div className="row">
           <label className="mini-field">
             Crop
-            <select
-              className="input"
-              value={habit.crop_type}
-              onChange={(e) => update.mutate({ id: habit.id, crop_type: e.target.value as CropType })}
-            >
+            <select className="input" value={habit.crop_type} onChange={(e) => update.mutate({ id: habit.id, crop_type: e.target.value as CropType })}>
               {CROP_TYPES.map((c) => (
-                <option key={c} value={c}>
+                <option key={c} value={c} disabled={!isUnlocked(c, tended) && c !== habit.crop_type}>
                   {CROPS[c].label}
+                  {!isUnlocked(c, tended) ? ` (locked)` : ""}
                 </option>
               ))}
             </select>
@@ -123,23 +121,23 @@ function HabitRow({ habit, all }: { habit: Habit; all: Habit[] }) {
               })}
             </select>
           </label>
-          <div style={{ marginLeft: "auto" }}>
-            {confirming ? (
-              <span className="row">
-                <span className="small muted">Archive? Its history stays in the almanac.</span>
-                <button className="btn blush small" onClick={() => update.mutate({ id: habit.id, archived_at: new Date().toISOString() })}>
-                  Archive
-                </button>
-                <button className="btn ghost small" onClick={() => setConfirming(false)}>
-                  Keep
-                </button>
-              </span>
-            ) : (
-              <button className="btn ghost small" onClick={() => setConfirming(true)}>
+        </div>
+        <div className="row">
+          {confirming ? (
+            <>
+              <span className="small muted">Archive? Its history stays in the almanac.</span>
+              <button className="btn blush small" onClick={() => update.mutate({ id: habit.id, archived_at: new Date().toISOString() })}>
                 Archive
               </button>
-            )}
-          </div>
+              <button className="btn ghost small" onClick={() => setConfirming(false)}>
+                Keep
+              </button>
+            </>
+          ) : (
+            <button className="btn ghost small" onClick={() => setConfirming(true)}>
+              Archive
+            </button>
+          )}
         </div>
         <ErrorNote error={update.error ?? move.error} />
       </div>

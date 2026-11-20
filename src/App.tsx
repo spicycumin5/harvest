@@ -1,15 +1,13 @@
-import { NavLink, Navigate, Route, Routes, Link } from "react-router-dom";
+import { NavLink, Route, Routes, Link } from "react-router-dom";
 import { useSession } from "./data/session";
 import { useProfile } from "./data/hooks";
 import { supabaseConfigured } from "./lib/supabase";
-import { SvgDefs, phaseForHour } from "./art/Island";
+import { SvgDefs } from "./art/Island";
+import { useSky } from "./data/useSky";
 import { ErrorNote, Loading } from "./components/ui";
 import { Welcome } from "./screens/Welcome";
 import { Onboarding } from "./screens/Onboarding";
 import { Field } from "./screens/Field";
-import { Habits } from "./screens/Habits";
-import { Almanac } from "./screens/Almanac";
-import { Settings } from "./screens/Settings";
 import { SetupNeeded } from "./screens/SetupNeeded";
 
 export function App() {
@@ -31,6 +29,7 @@ function Gate() {
 
 function SignedIn() {
   const profile = useProfile();
+  const sky = useSky();
   if (profile.isLoading) return <Loading />;
   if (profile.error || !profile.data)
     return (
@@ -42,13 +41,13 @@ function SignedIn() {
 
   return (
     <>
-      <header className={"topbar" + (phaseForHour(new Date().getHours()) === "night" ? " on-dark" : "")}>
+      <header className={"topbar" + (sky.dark > 0.5 ? " on-dark" : "")}>
         <Link to="/" className="brand">
           {profile.data.farm_name}
         </Link>
         <nav className="nav">
           <NavLink to="/" end>
-            Field
+            Farm
           </NavLink>
           <NavLink to="/habits">Habits</NavLink>
           <NavLink to="/almanac">Almanac</NavLink>
@@ -56,11 +55,8 @@ function SignedIn() {
         </nav>
       </header>
       <Routes>
-        <Route path="/" element={<Field />} />
-        <Route path="/habits" element={<Habits />} />
-        <Route path="/almanac" element={<Almanac />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* One farm stays mounted for every path; /habits, /almanac and /settings open panels over it. */}
+        <Route path="*" element={<Field />} />
       </Routes>
     </>
   );
