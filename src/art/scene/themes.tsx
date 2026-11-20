@@ -4,7 +4,7 @@ import { mixHex, type SkyState } from "../../lib/sky";
 import type { ThemeId } from "../../data/types";
 import { ISLAND as S } from "./layout";
 import { PASTEL_BED, type BedStyle } from "./Tile";
-import { CloudSea, Fence, Glow, Hills, Islet, Lantern, LanternLight, Motes, PineTree, RoundTree, dusk } from "./parts";
+import { CloudSea, Fence, Glow, Islet, Lantern, LanternLight, Motes, PineTree, RoundTree, dusk } from "./parts";
 
 export interface SceneProps {
   sky: SkyState;
@@ -145,9 +145,75 @@ const floating: ThemeDef = {
   ),
 };
 
+// ── grounded dioramas ───────────────────────────────────────────────────────
+//
+// The farm, backyard and ocean each sit on their own block, seen from the same
+// isometric camera as everything else. There's no horizon line: the block rests in
+// soft haze, the way a tabletop diorama would.
+
+interface Layer {
+  h: number;
+  left: string;
+  right: string;
+}
+
+/** A block of land (or water) from x0..x1, y0..y1 whose top is at z, with layered cut sides. */
+function Slab({ x0, y0, x1, y1, z = 0, top, layers, topOpacity = 1 }: { x0: number; y0: number; x1: number; y1: number; z?: number; top: string; layers: Layer[]; topOpacity?: number }) {
+  let zz = z;
+  const faces = layers.map((l, i) => {
+    const z1 = zz;
+    const z2 = zz - l.h;
+    zz = z2;
+    return (
+      <g key={i}>
+        <polygon points={pts(P(x0, y1, z1), P(x1, y1, z1), P(x1, y1, z2), P(x0, y1, z2))} fill={l.left} />
+        <polygon points={pts(P(x1, y0, z1), P(x1, y1, z1), P(x1, y1, z2), P(x1, y0, z2))} fill={l.right} />
+      </g>
+    );
+  });
+  return (
+    <g>
+      {faces}
+      <polygon points={topFace(x0, y0, z, x1 - x0, y1 - y0)} fill={top} opacity={topOpacity} />
+    </g>
+  );
+}
+
+/** A soft shadow cast by a block onto the haze below it. */
+function SlabShadow({ x0, y0, x1, y1, z }: { x0: number; y0: number; x1: number; y1: number; z: number }) {
+  return (
+    <g transform="translate(0 46)" filter="url(#cloud-blur)">
+      <polygon points={topFace(x0 + 0.4, y0 + 0.4, z, x1 - x0 - 0.8, y1 - y0 - 0.8)} fill="#4b3a5c" opacity={0.16} />
+    </g>
+  );
+}
+
+/** Low, soft haze that the dioramas rest in; the sun sets into it. */
+function Haze({ sky, dark, tint }: SceneProps & { tint: string }) {
+  const fill = dusk(mixHex(sky.colors[2], tint, 0.18), dark, 0.5);
+  return (
+    <g filter="url(#cloud-blur)" opacity={0.75}>
+      {[
+        [-1000, 470, 420, 90],
+        [-420, 455, 330, 70],
+        [120, 465, 380, 80],
+        [640, 450, 340, 70],
+        [1100, 470, 420, 90],
+        [0, 640, 1600, 220],
+      ].map(([cx, cy, rx, ry], i) => (
+        <ellipse key={i} cx={cx} cy={cy} rx={rx} ry={ry} fill={fill} />
+      ))}
+    </g>
+  );
+}
+
+const SKY_HORIZON = 380; // the sun sinks into the haze below the block
+
 // ── Countryside Farm ────────────────────────────────────────────────────────
 
-/** A field of crop rows on the meadow around the farm. */
+const FARM = { x0: -2.5, y0: -1.3, x1: S + 1.1, y1: S + 1.0 };
+
+/** A field of crop rows on the land around the farm. */
 function FieldPatch({ x, y, w, d, base, row, along }: { x: number; y: number; w: number; d: number; base: string; row: string; along: "x" | "y" }) {
   const rows = Math.floor((along === "x" ? d : w) / 0.28);
   return (
@@ -167,17 +233,12 @@ function Barn({ x, y, w, d, h, rh }: { x: number; y: number; w: number; d: numbe
   const x1 = x + w;
   const y1 = y + d;
   const xm = x + w / 2;
-  const wall = { left: "#f2b8ad", right: "#dc958c" };
   return (
     <g>
-      {/* gable end facing front-left */}
-      <polygon points={pts(P(x, y1, 0), P(x1, y1, 0), P(x1, y1, h), P(xm, y1, h + rh), P(x, y1, h))} fill={wall.left} />
-      {/* long wall facing front-right */}
-      <polygon points={pts(P(x1, y, 0), P(x1, y1, 0), P(x1, y1, h), P(x1, y, h))} fill={wall.right} />
-      {/* roof slope */}
+      <polygon points={pts(P(x, y1, 0), P(x1, y1, 0), P(x1, y1, h), P(xm, y1, h + rh), P(x, y1, h))} fill="#f2b8ad" />
+      <polygon points={pts(P(x1, y, 0), P(x1, y1, 0), P(x1, y1, h), P(x1, y, h))} fill="#dc958c" />
       <polygon points={pts(P(x1, y, h), P(x1, y1, h), P(xm, y1, h + rh), P(xm, y, h + rh))} fill="#b8a1d4" />
       <polygon points={pts(P(x1 + 0.06, y - 0.06, h - 0.04), P(x1 + 0.06, y1 + 0.06, h - 0.04), P(x1, y1 + 0.06, h), P(x1, y - 0.06, h))} fill="#9d86bf" />
-      {/* big doors with cross bracing */}
       {(() => {
         const a = P(x1, y + d * 0.3, 0);
         const b = P(x1, y + d * 0.7, 0);
@@ -191,7 +252,6 @@ function Barn({ x, y, w, d, h, rh }: { x: number; y: number; w: number; d: numbe
           </g>
         );
       })()}
-      {/* loft window on the gable */}
       <polygon points={pts(P(xm - 0.14, y1, h + 0.05), P(xm + 0.14, y1, h + 0.05), P(xm + 0.14, y1, h + 0.32), P(xm - 0.14, y1, h + 0.32))} fill="#fff3c4" className="window-glow" />
     </g>
   );
@@ -201,11 +261,13 @@ function HayBale({ x, y }: { x: number; y: number }) {
   return <Box x={x} y={y} w={0.42} d={0.28} h={0.24} c={{ top: "#f9e3a3", left: "#efcf80", right: "#dcb865" }} />;
 }
 
+const FENCE: [string, string] = ["#f6e9dc", "#dcc6b4"];
+
 const farm: ThemeDef = {
   id: "farm",
   name: "Countryside Farm",
-  blurb: "Fields, a red barn and hills rolling off to the horizon.",
-  horizonY: 30,
+  blurb: "Fields, a red barn and a fenced vegetable patch.",
+  horizonY: SKY_HORIZON,
   bed: {
     soil: { top: "#dcae8f", left: "#c99a7c", right: "#b48568" },
     wet: { top: "#c9977a", left: "#bd8d71", right: "#a77a61" },
@@ -214,46 +276,43 @@ const farm: ThemeDef = {
   },
   pathColor: "#f1e3c8",
   floats: false,
-  bounds: { left: -330, right: 330, top: -150, bottom: 320 },
-  portraitBounds: { left: -265, right: 265, top: -150, bottom: 310 },
-  Distant: ({ dark }) => (
-    <g>
-      <Hills y={0} amp={26} fill={dusk("#c4dcc6", dark)} seed={1} />
-      <Hills y={22} amp={18} fill={dusk("#b5d6b0", dark)} seed={2} />
-      <rect x={-3000} y={30} width={6000} height={3000} fill={dusk("#bfdcaa", dark)} />
-      {/* far fields, thinning toward the horizon */}
-      {[
-        [34, 6, "#d6e6b2"],
-        [44, 8, "#cfe2a9"],
-        [58, 10, "#e8dfa6"],
-        [78, 14, "#c6dea4"],
-      ].map(([y, h, c], i) => (
-        <rect key={i} x={-3000} y={y as number} width={6000} height={h as number} fill={dusk(c as string, dark)} opacity={0.8} />
-      ))}
-    </g>
-  ),
+  bounds: { left: -415, right: 365, top: -185, bottom: 400 },
+  portraitBounds: { left: -320, right: 300, top: -185, bottom: 395 },
+  Distant: (p) => <Haze {...p} tint="#cfe6b5" />,
   Ground: ({ dark }) => (
     <g>
-      <FieldPatch x={-3.4} y={2.0} w={3.0} d={3.4} base={dusk("#e9dca0", dark, 0.3)} row={dusk("#dcc57a", dark, 0.3)} along="y" />
-      <FieldPatch x={2.0} y={-3.4} w={3.4} d={3.0} base={dusk("#c5dfb0", dark, 0.3)} row={dusk("#a9cd96", dark, 0.3)} along="x" />
-      <Box x={0} y={0} z={-0.22} w={S} d={S} h={0.22} c={{ top: "#cfe6b5", left: "#d9b08f", right: "#c09474" }} />
+      <SlabShadow {...FARM} z={-0.92} />
+      <Slab
+        {...FARM}
+        top="#c6e2ae"
+        layers={[
+          { h: 0.12, left: "#b2d79f", right: "#9cc78c" },
+          { h: 0.45, left: "#e6bb9c", right: "#cf9f84" },
+          { h: 0.35, left: "#d9aebb", right: "#bf93a6" },
+        ]}
+      />
+      <FieldPatch x={-2.3} y={1.2} w={1.95} d={S - 0.4} base={dusk("#ecdfa4", dark, 0.3)} row={dusk("#dcc57a", dark, 0.3)} along="y" />
+      <FieldPatch x={0.25} y={-1.15} w={S - 0.5} d={0.85} base={dusk("#d6cfe9", dark, 0.3)} row={dusk("#b9a6dc", dark, 0.3)} along="x" />
+      {/* the vegetable patch itself */}
+      <polygon points={topFace(-0.08, -0.08, 0, S + 0.16, S + 0.16)} fill="#e6d1b2" />
+      <polygon points={topFace(0, 0, 0, S, S)} fill="#d3eab9" />
     </g>
   ),
   Back: () => (
     <g>
-      <Barn x={-2.0} y={0.25} w={1.5} d={1.7} h={1.15} rh={0.7} />
-      <HayBale x={-0.55} y={2.2} />
-      <Fence from={[0, 0]} to={[S, 0]} c={["#f6e9dc", "#dcc6b4"]} />
-      <Fence from={[0, 0]} to={[0, S]} c={["#f6e9dc", "#dcc6b4"]} />
-      <RoundTree x={S + 0.7} y={0.9} c={["#b4d9a8", "#8cbf83"]} />
-      <RoundTree x={S + 1.3} y={2.3} s={0.8} c={["#c0e0b0", "#93c48a"]} />
+      <Barn x={-2.25} y={-1.1} w={1.5} d={1.7} h={1.15} rh={0.7} />
+      <HayBale x={-0.65} y={0.75} />
+      <Fence from={[0, 0]} to={[S, 0]} c={FENCE} />
+      <Fence from={[0, 0]} to={[0, S]} c={FENCE} />
+      <RoundTree x={S + 0.6} y={0.5} c={["#b4d9a8", "#8cbf83"]} />
+      <RoundTree x={S + 0.65} y={2.2} s={0.8} c={["#c0e0b0", "#93c48a"]} />
     </g>
   ),
   Front: ({ dark }) => (
     <g>
-      <Fence from={[0, S]} to={[S - 0.75, S]} c={["#f6e9dc", "#dcc6b4"]} />
-      <Fence from={[S, 0]} to={[S, S - 0.75]} c={["#f6e9dc", "#dcc6b4"]} />
-      <HayBale x={S + 0.25} y={S - 0.45} />
+      <Fence from={[0, S]} to={[S - 0.75, S]} c={FENCE} />
+      <Fence from={[S, 0]} to={[S, S - 0.75]} c={FENCE} />
+      <HayBale x={S + 0.3} y={S - 0.5} />
       <Motes dark={dark} />
     </g>
   ),
@@ -266,6 +325,8 @@ const farm: ThemeDef = {
 };
 
 // ── Backyard ────────────────────────────────────────────────────────────────
+
+const YARD = { x0: -2.7, y0: -0.95, x1: S + 1.3, y1: S + 0.7 };
 
 /** The back of a house, its long wall facing the yard. */
 function House({ dark }: { dark: number }) {
@@ -294,12 +355,9 @@ function House({ dark }: { dark: number }) {
       {window(0.3, 0.75)}
       {window(1.3, 0.75)}
       {window(3.0, 0.75)}
-      {/* back door */}
       <polygon points={pts(P(x1, 2.0, 0), P(x1, 2.45, 0), P(x1, 2.45, 1.0), P(x1, 2.0, 1.0))} fill="#c8a7c4" />
       <circle cx={P(x1, 2.38, 0.5)[0]} cy={P(x1, 2.38, 0.5)[1]} r={1.3} fill="#fff3c4" />
-      {/* step */}
       <Box x={x1} y={1.9} w={0.3} d={0.65} h={0.08} c={{ top: "#f1ebe4", left: "#ddd3c9", right: "#cbbfb4" }} />
-      {/* chimney */}
       <Box x={xm - 0.15} y={0.2} z={h + 0.3} w={0.3} d={0.3} h={0.7} c={{ top: "#e8c3b4", left: "#dba997", right: "#c59584" }} />
     </g>
   );
@@ -353,7 +411,7 @@ const backyard: ThemeDef = {
   id: "backyard",
   name: "Backyard",
   blurb: "Raised garden beds behind the house, with lights strung over the lawn.",
-  horizonY: 20,
+  horizonY: SKY_HORIZON,
   bed: {
     soil: { top: "#c9977c", left: "#e2be96", right: "#c9a27b" },
     wet: { top: "#b5826a", left: "#e2be96", right: "#c9a27b" },
@@ -362,41 +420,42 @@ const backyard: ThemeDef = {
   },
   pathColor: "#efe8e1",
   floats: false,
-  bounds: { left: -340, right: 330, top: -225, bottom: 310 },
-  portraitBounds: { left: -290, right: 270, top: -225, bottom: 305 },
-  Distant: ({ dark }) => (
+  bounds: { left: -410, right: 360, top: -230, bottom: 410 },
+  portraitBounds: { left: -330, right: 300, top: -230, bottom: 405 },
+  Distant: (p) => <Haze {...p} tint="#d7ecc6" />,
+  Ground: ({ dark, id }) => (
     <g>
-      {/* neighbouring rooftops and a treeline */}
-      {[-520, -330, 300, 470].map((x, i) => (
-        <polygon key={i} points={`${x - 70},20 ${x},${-28 - (i % 2) * 10} ${x + 70},20`} fill={dusk("#d7c8d9", dark)} opacity={0.8} />
-      ))}
-      <Hills y={18} amp={22} fill={dusk("#b3d1b5", dark)} seed={4} />
-      <rect x={-3000} y={20} width={6000} height={3000} fill={dusk("#c4e2b2", dark, 0.4)} />
-    </g>
-  ),
-  Ground: ({ dark }) => (
-    <g>
+      <SlabShadow {...YARD} z={-0.9} />
+      <Slab
+        {...YARD}
+        top="#c3e1af"
+        layers={[
+          { h: 0.1, left: "#b2d79f", right: "#9cc78c" },
+          { h: 0.5, left: "#e3c0a2", right: "#cba487" },
+          { h: 0.3, left: "#e0d3dc", right: "#c7b6c4" },
+        ]}
+      />
       <defs>
-        <clipPath id="lawn-clip">
-          <rect x={-3000} y={24} width={6000} height={3000} />
+        <clipPath id={`lawn-${id}`}>
+          <polygon points={topFace(YARD.x0, YARD.y0, 0, YARD.x1 - YARD.x0, YARD.y1 - YARD.y0)} />
         </clipPath>
       </defs>
       {/* mowing stripes */}
-      <g clipPath="url(#lawn-clip)">
-        {Array.from({ length: 30 }, (_, k) => (
-          <polygon key={k} points={topFace(-9 + k * 0.7, -9, 0, 0.7, 22)} fill={dusk(k % 2 ? "#c9e6b6" : "#bfdfaa", dark, 0.4)} />
+      <g clipPath={`url(#lawn-${id})`}>
+        {Array.from({ length: 14 }, (_, k) => (
+          <polygon key={k} points={topFace(YARD.x0 + k * 0.7, YARD.y0, 0, 0.7, YARD.y1 - YARD.y0)} fill={dusk(k % 2 ? "#c9e6b6" : "#bfdfaa", dark, 0.4)} />
         ))}
       </g>
       {/* brick edging around the garden */}
-      <Box x={-0.08} y={-0.08} z={-0.06} w={S + 0.16} d={S + 0.16} h={0.06} c={{ top: "#e6bfae", left: "#d9a996", right: "#c49482" }} />
+      <polygon points={topFace(-0.1, -0.1, 0, S + 0.2, S + 0.2)} fill="#e6bfae" />
       <polygon points={topFace(0, 0, 0, S, S)} fill="#d7ecc6" />
     </g>
   ),
   Back: ({ dark }) => (
     <g>
       <House dark={dark} />
-      <Fence from={[-0.45, -0.7]} to={[S + 1.4, -0.7]} h={0.75} c={["#f3e4d4", "#dbc4b0"]} />
-      <RoundTree x={S + 0.75} y={0.35} s={1.15} c={["#b9dcb0", "#8dc18d"]} />
+      <Fence from={[-0.45, -0.7]} to={[S + 1.15, -0.7]} h={0.75} c={["#f3e4d4", "#dbc4b0"]} />
+      <RoundTree x={S + 0.7} y={0.35} s={1.1} c={["#b9dcb0", "#8dc18d"]} />
       <Pot x={-0.38} y={1.55} />
       <Pot x={-0.38} y={2.6} c={["#f6a3b8", "#de7d98"]} />
     </g>
@@ -412,6 +471,9 @@ const backyard: ThemeDef = {
 
 // ── Ocean Island ────────────────────────────────────────────────────────────
 
+const SEA = { x0: -1.6, y0: -1.4, x1: S + 2.4, y1: S + 1.2 };
+const WATER_Z = -0.34;
+
 function PalmTree({ x, y, lean = 1, s = 1 }: { x: number; y: number; lean?: number; s?: number }) {
   const [bx, by] = P(x, y, 0);
   const top: Pt = [bx + 16 * lean * s, by - 78 * s];
@@ -420,11 +482,9 @@ function PalmTree({ x, y, lean = 1, s = 1 }: { x: number; y: number; lean?: numb
     <g>
       <ellipse cx={bx} cy={by} rx={12} ry={4} fill="#4b3a5c" opacity={0.1} />
       {Array.from({ length: segs }, (_, i) => {
-        const t0 = i / segs;
-        const t1 = (i + 1) / segs;
         const at = (t: number): Pt => [bx + (top[0] - bx) * t * t, by + (top[1] - by) * t];
-        const [ax, ay] = at(t0);
-        const [cx, cy] = at(t1);
+        const [ax, ay] = at(i / segs);
+        const [cx, cy] = at((i + 1) / segs);
         return <line key={i} x1={ax} y1={ay} x2={cx} y2={cy} stroke={i % 2 ? "#cfa67f" : "#dcb791"} strokeWidth={4.5 - i * 0.35} strokeLinecap="round" />;
       })}
       {[-160, -120, -70, -30, 15, 60].map((a, i) => (
@@ -465,74 +525,67 @@ function Lighthouse() {
 const LAMP = P(-0.14, -0.14, 4 * 0.62 + 0.22);
 
 function Pier() {
+  const [bx, by] = P(S + 1.6, 3.95, WATER_Z);
   return (
     <g>
       {[0, 0.5, 1.0, 1.5].map((dx) => (
-        <Box key={dx} x={S + 0.55 + dx} y={3.02} z={-0.45} w={0.07} d={0.07} h={0.4} c={{ top: "#c9a28f", left: "#b98f7d", right: "#a17868" }} />
+        <Box key={dx} x={S + 0.55 + dx} y={3.02} z={WATER_Z - 0.05} w={0.07} d={0.07} h={0.3} c={{ top: "#c9a28f", left: "#b98f7d", right: "#a17868" }} />
       ))}
       <Box x={S + 0.4} y={2.95} z={-0.08} w={1.85} d={0.5} h={0.06} c={{ top: "#e8cfb4", left: "#d6b796", right: "#c19f7f" }} />
-      {/* a little boat */}
-      {(() => {
-        const [bx, by] = P(S + 1.6, 3.95, -0.38);
-        return (
-          <g className="bob">
-            <polygon points={`${bx - 26},${by - 4} ${bx + 18},${by - 16} ${bx + 12},${by - 6} ${bx - 18},${by + 6}`} fill="#fbf3ef" />
-            <polygon points={`${bx - 18},${by + 6} ${bx + 12},${by - 6} ${bx + 10},${by} ${bx - 15},${by + 10}`} fill="#e8a49a" />
-            <line x1={bx - 3} y1={by - 6} x2={bx - 3} y2={by - 44} stroke="#a17868" strokeWidth={1.4} />
-            <polygon points={`${bx - 2},${by - 44} ${bx + 18},${by - 14} ${bx - 2},${by - 10}`} fill="#ffffff" />
-            <polygon points={`${bx - 4},${by - 40} ${bx - 4},${by - 12} ${bx - 18},${by - 10}`} fill="#f6e9e5" />
-          </g>
-        );
-      })()}
+      <g className="bob">
+        <polygon points={`${bx - 26},${by - 4} ${bx + 18},${by - 16} ${bx + 12},${by - 6} ${bx - 18},${by + 6}`} fill="#fbf3ef" />
+        <polygon points={`${bx - 18},${by + 6} ${bx + 12},${by - 6} ${bx + 10},${by} ${bx - 15},${by + 10}`} fill="#e8a49a" />
+        <line x1={bx - 3} y1={by - 6} x2={bx - 3} y2={by - 44} stroke="#a17868" strokeWidth={1.4} />
+        <polygon points={`${bx - 2},${by - 44} ${bx + 18},${by - 14} ${bx - 2},${by - 10}`} fill="#ffffff" />
+        <polygon points={`${bx - 4},${by - 40} ${bx - 4},${by - 12} ${bx - 18},${by - 10}`} fill="#f6e9e5" />
+      </g>
     </g>
   );
 }
 
 const SAND: Shades = { top: "#f7e6c6", left: "#efd5ab", right: "#e0c193" };
 
+/** Small breaking waves on the water's surface. */
+const WAVES: [number, number][] = [
+  [-1.1, 0.8],
+  [-1.0, 4.2],
+  [S + 1.4, -0.6],
+  [S + 1.9, 1.5],
+  [1.6, S + 0.85],
+  [S + 1.2, S + 0.7],
+  [3.6, -1.0],
+];
+
 const ocean: ThemeDef = {
   id: "ocean",
   name: "Ocean Island",
   blurb: "A sandy island with palms, a pier and a lighthouse.",
-  horizonY: 110,
+  horizonY: SKY_HORIZON,
   bed: PASTEL_BED,
   pathColor: "#f8ead2",
   floats: false,
-  bounds: { left: -300, right: 320, top: -225, bottom: 330 },
-  portraitBounds: { left: -280, right: 250, top: -225, bottom: 325 },
-  Distant: ({ sky, dark, id }) => {
-    const sea0 = dusk(mixHex(sky.colors[2], "#a6dce0", 0.6), dark, 0.5);
-    const sea1 = dusk("#7cc3cf", dark, 0.55);
-    return (
-      <g>
-        <defs>
-          <linearGradient id={`sea-${id}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={sea0} />
-            <stop offset="0.5" stopColor={dusk("#96d3d9", dark, 0.55)} />
-            <stop offset="1" stopColor={sea1} />
-          </linearGradient>
-        </defs>
-        {/* far islands */}
-        <polygon points="-560,112 -500,82 -470,96 -430,72 -380,112" fill={dusk("#b9c9d6", dark)} opacity={0.7} />
-        <polygon points="420,112 470,92 520,112" fill={dusk("#c4d2dc", dark)} opacity={0.6} />
-        <rect x={-3000} y={110} width={6000} height={3000} fill={`url(#sea-${id})`} />
-        {/* glints on the water */}
-        <g className="glints" fill="#ffffff">
-          {[[-380, 160], [-250, 210], [-120, 180], [300, 170], [380, 230], [180, 260], [-330, 300], [420, 320]].map(([x, y], i) => (
-            <rect key={i} x={x} y={y} width={18 + (i % 3) * 8} height={1.6} rx={1} opacity={0.5 - dark * 0.2} style={{ animationDelay: `${i * 0.6}s` }} />
-          ))}
-        </g>
-      </g>
-    );
-  },
-  Ground: () => (
+  bounds: { left: -380, right: 430, top: -230, bottom: 430 },
+  portraitBounds: { left: -300, right: 330, top: -230, bottom: 425 },
+  Distant: (p) => <Haze {...p} tint="#bfe6ea" />,
+  Ground: ({ dark }) => (
     <g>
+      <SlabShadow {...SEA} z={-1.15} />
+      {/* a block of sea: you can see into the water down to the sandy floor */}
+      <Slab
+        {...SEA}
+        z={WATER_Z}
+        top={dusk("#a3dcdf", dark, 0.5)}
+        layers={[
+          { h: 0.06, left: "#e9f8f8", right: "#d8f0f1" },
+          { h: 0.6, left: dusk("#93d3d6", dark, 0.5), right: dusk("#72bcc4", dark, 0.5) },
+          { h: 0.15, left: "#ead5ab", right: "#d6bd8f" },
+        ]}
+      />
       {/* shallow lagoon around the island */}
-      <polygon points={topFace(-1.3, -1.3, -0.34, S + 2.6, S + 2.6)} fill="#bfeee9" opacity={0.55} />
-      <Box x={-0.55} y={-0.55} z={-0.36} w={S + 1.1} d={S + 1.1} h={0.3} c={SAND} />
-      {/* foam along the waterline */}
+      <polygon points={topFace(-1.1, -1.1, WATER_Z, S + 2.2, S + 2.2)} fill="#c5f0ea" opacity={0.6} />
+      <Box x={-0.55} y={-0.55} z={WATER_Z - 0.02} w={S + 1.1} d={S + 1.1} h={0.3} c={SAND} />
       <polyline
-        points={pts(P(-0.55, S + 0.55, -0.36), P(S + 0.55, S + 0.55, -0.36), P(S + 0.55, -0.55, -0.36))}
+        points={pts(P(-0.55, S + 0.55, WATER_Z), P(S + 0.55, S + 0.55, WATER_Z), P(S + 0.55, -0.55, WATER_Z))}
         fill="none"
         stroke="#ffffff"
         strokeWidth={3}
@@ -541,8 +594,15 @@ const ocean: ThemeDef = {
       />
       <Box x={0} y={0} z={-0.06} w={S} d={S} h={0.06} c={{ top: GRASS.top, left: GRASS.left, right: GRASS.right }} />
       {/* rocks in the shallows */}
-      <Box x={-1.0} y={S - 0.4} z={-0.4} w={0.3} d={0.25} h={0.18} c={{ top: "#e2dbe6", left: "#cfc5d6", right: "#b8adc2" }} />
-      <Box x={-0.85} y={S - 0.05} z={-0.4} w={0.18} d={0.16} h={0.1} c={{ top: "#e2dbe6", left: "#cfc5d6", right: "#b8adc2" }} />
+      <Box x={-1.0} y={S - 0.4} z={WATER_Z - 0.06} w={0.3} d={0.25} h={0.18} c={{ top: "#e2dbe6", left: "#cfc5d6", right: "#b8adc2" }} />
+      <Box x={-0.85} y={S - 0.05} z={WATER_Z - 0.06} w={0.18} d={0.16} h={0.1} c={{ top: "#e2dbe6", left: "#cfc5d6", right: "#b8adc2" }} />
+      {/* glints and waves on the surface */}
+      <g className="waves" stroke="#ffffff" strokeWidth={1.6} fill="none" strokeLinecap="round" opacity={0.7}>
+        {WAVES.map(([gx, gy], i) => {
+          const [x, y] = P(gx, gy, WATER_Z);
+          return <path key={i} d={`M${x - 14} ${y} q7 -4 14 0 t14 0`} style={{ animationDelay: `${i * 0.7}s` }} />;
+        })}
+      </g>
     </g>
   ),
   Back: () => (
@@ -557,11 +617,6 @@ const ocean: ThemeDef = {
     <g>
       <Pier />
       <PalmTree x={0.9} y={S + 0.3} lean={-1} s={0.85} />
-      <g className="waves" stroke="#ffffff" strokeWidth={1.6} fill="none" strokeLinecap="round" opacity={0.65}>
-        {[[-300, 330], [-140, 360], [200, 350], [330, 300], [-380, 250], [380, 400], [0, 400]].map(([x, y], i) => (
-          <path key={i} d={`M${x - 14} ${y} q7 -5 14 0 t14 0`} style={{ animationDelay: `${i * 0.7}s` }} />
-        ))}
-      </g>
       <Motes dark={dark} />
     </g>
   ),
@@ -585,4 +640,3 @@ export const THEME_IDS: ThemeId[] = ["floating", "farm", "backyard", "ocean"];
 export function themeFor(id: ThemeId | undefined | null): ThemeDef {
   return (id && THEMES[id]) || floating;
 }
-

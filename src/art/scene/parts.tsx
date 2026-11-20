@@ -155,14 +155,3 @@ export function Motes({ dark }: { dark: number }) {
     </g>
   );
 }
-
-/** A soft rolling band of hills across the whole width, at a given baseline. */
-export function Hills({ y, amp, fill, seed = 0 }: { y: number; amp: number; fill: string; seed?: number }) {
-  let d = `M-3000 ${y + 400} L-3000 ${y}`;
-  for (let x = -3000; x <= 3000; x += 160) {
-    const h = Math.sin((x + seed * 97) / 210) * amp + Math.sin((x + seed * 31) / 90) * amp * 0.35;
-    d += ` Q${x + 80} ${y - h - amp * 0.4} ${x + 160} ${y - Math.sin((x + 160 + seed * 97) / 210) * amp * 0.5}`;
-  }
-  d += ` L3000 ${y + 400} Z`;
-  return <path d={d} fill={fill} />;
-}
