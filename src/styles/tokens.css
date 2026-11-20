@@ -1,0 +1,36 @@
+:root {
+  /* atmosphere */
+  --bg-top: #f7eef2;
+  --bg-bottom: #efeaf6;
+  --glass: rgba(255, 255, 255, 0.68);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --hairline: rgba(75, 63, 92, 0.12);
+
+  /* ink */
+  --ink: #4b3f5c;
+  --ink-soft: #85789a;
+
+  /* island palette */
+  --coral: #f2917f;
+  --coral-deep: #cf6b6f;
+  --peach: #f9c4a6;
+  --mint: #a8dcbf;
+  --mint-deep: #74b39a;
+  --lilac: #bba6ec;
+  --lilac-deep: #957fd6;
+  --butter: #f9dc8a;
+  --rose: #f59aa8;
+  --light: #fff3c4;
+
+  /* type */
+  --font-display: "Jost", "Futura", "Avenir Next", system-ui, sans-serif;
+  --font-body: "Jost", "Avenir Next", system-ui, sans-serif;
+
+  /* shape */
+  --radius-s: 12px;
+  --radius-m: 20px;
+  --radius-l: 28px;
+  --shadow-soft: 0 18px 50px -28px rgba(75, 58, 92, 0.45);
+  --shadow-lift: 0 26px 60px -26px rgba(75, 58, 92, 0.55);
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
